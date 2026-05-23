@@ -49,6 +49,7 @@ export default function Home() {
   const [hasMounted, setHasMounted] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
+  const noteCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     setHasMounted(true);
@@ -130,6 +131,16 @@ export default function Home() {
 
     setFilteredNotes(result);
   }, [notes, searchQuery, sortBy]);
+
+  // Scroll to the first matching note when search query changes
+  useEffect(() => {
+    if (!searchQuery.trim() || filteredNotes.length === 0) return;
+    const firstNote = filteredNotes[0];
+    const el = noteCardRefs.current[firstNote.id];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [searchQuery, filteredNotes]);
 
   const handleColorSelect = async (color: NoteColor) => {
     if (!user) return;
@@ -276,16 +287,31 @@ export default function Home() {
           <div className="max-w-none mx-8 py-8">
             <div className="flex items-center justify-between gap-6 mb-12">
               <div className="flex-1 max-w-md">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className={`relative flex items-center rounded-xl transition-all duration-200 ${searchQuery ? 'bg-yellow-50 ring-2 ring-yellow-300' : 'bg-gray-100 focus-within:bg-gray-50 focus-within:ring-2 focus-within:ring-gray-200'}`}>
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search"
-                    className="w-full pl-12 pr-4 py-3 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400 transition-all duration-200"
+                    placeholder="Search notes… (highlights matching cards)"
+                    className="w-full pl-12 pr-10 py-3 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400 transition-all duration-200"
+                    onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery(''); }}
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 hover:bg-gray-400 transition-colors cursor-pointer"
+                      title="Clear search (Esc)"
+                    >
+                      <span className="text-gray-600 text-xs font-bold leading-none">✕</span>
+                    </button>
+                  )}
                 </div>
+                {searchQuery && filteredNotes.length > 0 && (
+                  <p className="text-xs text-yellow-600 mt-1.5 ml-1 font-medium">
+                    {filteredNotes.length} note{filteredNotes.length !== 1 ? 's' : ''} found — scrolled to first match
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-4">
@@ -390,15 +416,24 @@ export default function Home() {
                   >
                     <AnimatePresence mode="popLayout" initial={false}>
                       {filteredNotes.map((note, index) => (
-                        <NoteCard
+                        <div
                           key={note.id}
-                          note={note}
-                          onClick={handleNoteClick}
-                          onToggleFavorite={handleToggleFavorite}
-                          onSave={handleSaveNote}
-                          index={index}
-                          isSortable={isReordering}
-                        />
+                          ref={(el) => { noteCardRefs.current[note.id] = el; }}
+                          className={`rounded-2xl transition-all duration-300 ${
+                            searchQuery.trim()
+                              ? 'ring-2 ring-yellow-400 ring-offset-2 shadow-lg shadow-yellow-200/60'
+                              : ''
+                          }`}
+                        >
+                          <NoteCard
+                            note={note}
+                            onClick={handleNoteClick}
+                            onToggleFavorite={handleToggleFavorite}
+                            onSave={handleSaveNote}
+                            index={index}
+                            isSortable={isReordering}
+                          />
+                        </div>
                       ))}
                     </AnimatePresence>
                   </div>
@@ -432,6 +467,7 @@ export default function Home() {
         }}
         onSave={handleSaveNote}
         onDelete={handleDeleteNote}
+        searchQuery={searchQuery}
       />
     </div>
   );
